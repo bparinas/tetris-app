@@ -1,5 +1,5 @@
 # ── Tetris – nginx:alpine, non-root safe ────────────────────────────────────
-FROM nginx:alpine
+FROM nginx:1.31.5-alpine
 
 LABEL maintainer="tetris-js"
 LABEL description="Tetris game – pure HTML/JS served by nginx"
