@@ -22,9 +22,9 @@ RUN set -eux; \
       /var/cache/nginx \
       /var/log/nginx \
       /usr/share/nginx/html; \
-    # PID file must be writable by nginx user
-    touch /var/run/nginx.pid; \
-    chown nginx:nginx /var/run/nginx.pid
+    # PID file – nginx 1.26+ uses /run/nginx.pid (not /var/run)
+    touch /run/nginx.pid; \
+    chown nginx:nginx /run/nginx.pid
 
 # Copy game + config
 COPY --chown=nginx:nginx index.html /usr/share/nginx/html/index.html
