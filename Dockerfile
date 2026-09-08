@@ -30,7 +30,7 @@ RUN set -eux; \
 COPY --chown=nginx:nginx index.html /usr/share/nginx/html/index.html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 
 # Run as non-root
 USER nginx
