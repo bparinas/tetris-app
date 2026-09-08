@@ -1,21 +1,38 @@
-# ── Stage 1: No build needed (pure HTML/JS) ─────────────────────────────────
-# Using nginx:alpine for a minimal, production-ready image (~25 MB)
+# ── Tetris – nginx:alpine, non-root safe ────────────────────────────────────
 FROM nginx:alpine
 
 LABEL maintainer="tetris-js"
 LABEL description="Tetris game – pure HTML/JS served by nginx"
 
-# Remove default nginx static assets
-RUN rm -rf /usr/share/nginx/html/*
+RUN set -eux; \
+    # Remove default content
+    rm -rf /usr/share/nginx/html/*; \
+    # Drop the global 'user nginx;' directive – irrelevant when already running
+    # as the nginx user and it triggers a warning when the master isn't root
+    sed -i '/^user /d' /etc/nginx/nginx.conf; \
+    # Pre-create all temp/cache dirs nginx needs at runtime
+    mkdir -p \
+      /var/cache/nginx/client_temp \
+      /var/cache/nginx/proxy_temp \
+      /var/cache/nginx/fastcgi_temp \
+      /var/cache/nginx/uwsgi_temp \
+      /var/cache/nginx/scgi_temp; \
+    # Hand ownership of everything nginx touches to the nginx user
+    chown -R nginx:nginx \
+      /var/cache/nginx \
+      /var/log/nginx \
+      /usr/share/nginx/html; \
+    # PID file must be writable by nginx user
+    touch /var/run/nginx.pid; \
+    chown nginx:nginx /var/run/nginx.pid
 
-# Copy game files
-COPY index.html /usr/share/nginx/html/index.html
-
-# Copy custom nginx config
+# Copy game + config
+COPY --chown=nginx:nginx index.html /usr/share/nginx/html/index.html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
 EXPOSE 80
 
-# nginx starts in foreground (required for Docker)
+# Run as non-root
+USER nginx
+
 CMD ["nginx", "-g", "daemon off;"]
