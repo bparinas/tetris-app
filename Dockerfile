@@ -1,38 +1,48 @@
-# ── Tetris – nginx:alpine, non-root safe ────────────────────────────────────
+# ── Tetris – OpenShift / arbitrary-UID compatible ───────────────────────────
 FROM nginx:1.31.5-alpine
 
 LABEL maintainer="tetris-js"
-LABEL description="Tetris game – pure HTML/JS served by nginx"
+LABEL description="Tetris game – nginx, runs as any UID (OpenShift SCC safe)"
 
 RUN set -eux; \
-    # Remove default content
     rm -rf /usr/share/nginx/html/*; \
-    # Drop the global 'user nginx;' directive – irrelevant when already running
-    # as the nginx user and it triggers a warning when the master isn't root
+    \
+    # ── nginx.conf tweaks ──────────────────────────────────────────────────
+    # 1. Remove 'user nginx;' – meaningless / warns when not running as root
     sed -i '/^user /d' /etc/nginx/nginx.conf; \
-    # Pre-create all temp/cache dirs nginx needs at runtime
+    # 2. Move PID to /tmp – writable by any UID without special permissions
+    sed -i 's|pid\s*/run/nginx.pid;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf; \
+    \
+    # ── Temp dirs in /tmp ─────────────────────────────────────────────────
+    # OpenShift mounts /tmp as world-writable; /var/cache/nginx may not be
     mkdir -p \
-      /var/cache/nginx/client_temp \
-      /var/cache/nginx/proxy_temp \
-      /var/cache/nginx/fastcgi_temp \
-      /var/cache/nginx/uwsgi_temp \
-      /var/cache/nginx/scgi_temp; \
-    # Hand ownership of everything nginx touches to the nginx user
-    chown -R nginx:nginx \
+      /tmp/nginx/client_temp \
+      /tmp/nginx/proxy_temp \
+      /tmp/nginx/fastcgi_temp \
+      /tmp/nginx/uwsgi_temp \
+      /tmp/nginx/scgi_temp; \
+    \
+    # ── GID-0 ownership + group-write ─────────────────────────────────────
+    # OpenShift always assigns GID 0 (root group) to the arbitrary runtime UID.
+    # Granting g+rwX to GID 0 makes every file accessible regardless of UID.
+    chown -R 0:0 \
       /var/cache/nginx \
       /var/log/nginx \
-      /usr/share/nginx/html; \
-    # PID file – nginx 1.26+ uses /run/nginx.pid (not /var/run)
-    touch /run/nginx.pid; \
-    chown nginx:nginx /run/nginx.pid
+      /usr/share/nginx/html \
+      /etc/nginx; \
+    chmod -R g+rwX \
+      /var/cache/nginx \
+      /var/log/nginx \
+      /usr/share/nginx/html \
+      /etc/nginx
 
-# Copy game + config
-COPY --chown=nginx:nginx index.html /usr/share/nginx/html/index.html
+COPY --chown=0:0 index.html /usr/share/nginx/html/index.html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080
 
-# Run as non-root
-USER nginx
+# Declare a non-root UID; OpenShift overrides this with its own arbitrary UID,
+# but this makes the intent explicit and satisfies most image scanners.
+USER 1001
 
 CMD ["nginx", "-g", "daemon off;"]
